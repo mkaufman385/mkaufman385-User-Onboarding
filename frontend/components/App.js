@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import * as yup from "yup";
+import { isValid } from "ipaddr.js";
 
 const e = {
   // This is a dictionary of validation error messages.
@@ -20,6 +21,29 @@ const e = {
   agreementRequired: "agreement is required",
   agreementOptions: "agreement must be accepted",
 };
+
+const userSchema = yup.object().shape({
+  username: yup
+    .string()
+    .trim()
+    .required(e.usernameRequired)
+    .min(3, e.usernameMin)
+    .max(20, e.usernameMax),
+  favLanguage: yup
+    .string()
+    .required(e.favLanguageRequired)
+    .trim()
+    .oneOf(["javascript", "rust"], e.favLanguageOptions),
+  favFood: yup
+    .string()
+    .required(e.favFoodRequired)
+    .trim()
+    .oneOf(["broccoli", "spaghetti", "pizza"], e.favFoodOptions),
+  agreement: yup
+    .boolean()
+    .required(e.agreementRequired)
+    .oneOf([true], e.agreementOptions),
+});
 
 // ✨ TASK: BUILD YOUR FORM SCHEMA HERE
 // The schema should use the error messages contained in the object above.
@@ -48,6 +72,11 @@ export default function App() {
   const [errors, setErrors] = useState(getInitialErrors());
   const [serverSuccess, setServerSuccess] = useState();
   const [serverFailure, setServerFailure] = useState();
+  const [formEnabled, setFormEnabled] = useState(false);
+
+  useEffect(() => {
+    userSchema.isValid(values).then(setFormEnabled);
+  }, [values]);
 
   // ✨ TASK: BUILD YOUR EFFECT HERE
   // Whenever the state of the form changes, validate it against the schema,
@@ -57,6 +86,11 @@ export default function App() {
     let { type, name, value, checked } = evt.target;
     value = type == "checkbox" ? checked : value;
     setValues({ ...values, [name]: value });
+    yup
+      .reach(userSchema, name)
+      .validate(value)
+      .then(() => setErrors({ ...errors, [name]: "" }))
+      .catch((err) => setErrors({ ...errors, [name]: err.errors[0] }));
 
     // ✨ TASK: IMPLEMENT YOUR INPUT CHANGE HANDLER
     // The logic is a bit different for the checkbox, but you can check
@@ -70,15 +104,15 @@ export default function App() {
     axios
       .post("https://webapis.bloomtechdev.com/registration", values)
       .then((res) => {
-        console.log(res);
-        // setValues(getInitialValues());
-        // setServerSuccess(res.data.message);
-        // setServerFailure();
+        // console.log(res);
+        setValues(getInitialValues());
+        setServerSuccess(res.data.message);
+        setServerFailure();
+      })
+      .catch((err) => {
+        setServerFailure(err.response.data.message);
+        setServerSuccess();
       });
-    // .catch((err) => {
-    //   setServerFailure(err.response.data.message);
-    //   setServerSuccess();
-    // });
   };
 
   return (
@@ -166,7 +200,7 @@ export default function App() {
           )}
         </div>
         <div>
-          <input type="submit" disabled={false} />
+          <input disabled={!formEnabled} type="submit" />
         </div>
       </form>
     </div>
